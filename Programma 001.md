@@ -5,10 +5,10 @@
 Met de twee servo’s kunnen we de pen naar elk punt op het papier bewegen. De servo’s bewegen de armen in draaiende bewegingen. Om de pen uiteindelijk een rechte lijn te laten tekenen, moeten we voor meerdere xy-punten steeds de juiste hoeken berekenen. Hier komt wat goniometrie bij kijken.
 Meetkundig ziet de situatie er zo uit:
 
-<img src="gonio.png" alt="VPC tekening" width="500">
+<img src="gonio-002.png" alt="VPC tekening" width="500">
 
-* De schouderservo bevindt zich op punt (0,0) en heeft een draaibereik van 180° **rechtsom**
-* De elleboogservo zit tussen de bovenarm (8 cm) en de onderarm (6 cm) en heeft ook een draaibereik van 180°. Omdat deze servo op de kop is gemonteerd is de draairichting **linksom**
+* De schouderservo bevindt zich op punt (0,0) en heeft een draaibereik van 180° **linksom**
+* De elleboogservo zit tussen de bovenarm (8 cm) en de onderarm (6 cm) en heeft ook een draaibereik van 180°. Omdat deze servo op de kop is gemonteerd is de draairichting **rechtsom**
 * De pen staat op het coördinaat (x,y)
 
 ## Uitdaging
@@ -20,7 +20,7 @@ $$
 L = \sqrt{x^2+y^2}
 $$
 
-In Python ziet dat er zo uit:
+In Python ziet dit er zo uit:
 
 ```python
 import math
@@ -58,31 +58,30 @@ print(hoek_graden)
 Aan het einde van de code wordt *hoek* (in radialen) omgezet naar *hoek_graden*.
 
 ## Hoek elleboog
-Als we kijken naar de elleboogservo dan zien we dat de hoek **∠E** zich in een driehoek bevindt van de bovenarm (8 cm), onderarm (6 cm) en L. In formule vorm ziet dit er zo uit:
+Als we kijken naar de elleboogservo dan zien we dat de hoek **∠E** zich in een driehoek bevindt van de bovenarm (8 cm), onderarm (6 cm) en L. Omdat deze hoek zich op het eind van het draaibereik bevindt, moeten we de gevonden hoek aftrekken van 180°. In formule vorm ziet dit er zo uit:
 
 $$
-\angle E = \arccos\left(\frac{L_{bovenarm}^2 + L_{onderarm}^2 - L^2}{2 \cdot L_{bovenarm} \cdot L_{onderarm}}\right)
+\angle E = 180^\circ -\arccos\left(\frac{L_{bovenarm}^2 + L_{onderarm}^2 - L^2}{2 \cdot L_{bovenarm} \cdot L_{onderarm}}\right)
 $$
 
 Als we de lengtes van de armen invullen en op de plaats van **L** de eerdere stelling van Pythagoras zetten, blijft dit over:
 
 $$
-\angle E = \arccos\left(\frac{100 - x^2 - y^2}{96}\right)
+\angle E = 180^\circ -\arccos\left(\frac{100 - x^2 - y^2}{96}\right)
 $$
+
+In Python:
 
 ```python
 import math
 
-hoek_E = math.degrees(
+hoek_E = 180 - math.degrees(
     math.acos((100 - x**2 - y**2) / 96)
 )
 ```
 ## Hoek schouder
-Voor het berekenen van de hoek van de schouderservo moeten we iets meer stappen maken, maar veel meer dan (twee keer) de cosinusregel hebben we niet nodig. Hier een detail van de tekening van het draaipunt rond de schouderservo.
 
-<img src="gonio_detail.png" alt="Detail schouder" width="700">
-
-De hoek van de schouder **∠S** is 180° min (hoek **∠a** + **∠b**)
+De hoek van de schouderservo **∠S** is de som van hoek **∠a** en hoek  **∠b**
 
 De hoeken **∠a** en **∠b** kunnen we allebei berekenen met de cosinusregel:
 
@@ -136,10 +135,10 @@ hoek_b = math.degrees(
 )
 ```
 ### Berekening ∠S
-De hoek van de schouder **∠S** is 180° - (**∠a** + **∠b**)
+De hoek van de schouder **∠S** is **∠a** + **∠b**
 
 $$
-\angle S = 180^\circ - \angle a - \angle b
+\angle S = \angle a + \angle b
 $$
 
 De code voor het bepalen van de hoek van de schouderservo is dan:
@@ -164,7 +163,7 @@ hoek_b = math.degrees(
 )
 
 # schouderhoek
-hoek_S = 180 - hoek_a - hoek_b
+hoek_S = hoek_a + hoek_b
 
 print(hoek_S)
 ```
@@ -181,7 +180,7 @@ def bereken_ellebooghoek(x, y):
     op basis van het punt (x, y).
     """
     waarde = (100 - x**2 - y**2) / 96
-    hoek_E = math.degrees(math.acos(waarde))
+    hoek_E = 180 - math.degrees(math.acos(waarde))
     return hoek_E
 
 
@@ -198,7 +197,7 @@ def bereken_schouderhoek(x, y):
     waarde_b = x / L
     hoek_b = math.degrees(math.acos(waarde_b))
 
-    hoek_S = 180 - hoek_a - hoek_b
+    hoek_S = hoek_a + hoek_b
     return hoek_S
 ```
 
