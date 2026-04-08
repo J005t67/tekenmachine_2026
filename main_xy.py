@@ -24,8 +24,6 @@ import time
 
 import framebuf
 
-import Vector2D
-
 # framebuf → beeld in geheugen opbouwen voor OLED
 
 
@@ -134,6 +132,81 @@ class SSD1306_I2C:
             self.writeto_retry(b"\x40" + self.buffer[i:i + chunk])
             time.sleep_ms(1)
 
+class Vector2D:
+    """A two-dimensional vector with Cartesian coordinates."""
+    """https://scipython.com/books/book2/chapter-4-the-core-python-language-ii/examples/a-2d-vector-class/"""
+
+    def __init__(self, x, y):
+        self.x, self.y = x, y
+
+    def __str__(self):
+        """Human-readable string representation of the vector."""
+        return '{:g}i + {:g}j'.format(self.x, self.y)
+
+    def __repr__(self):
+        """Unambiguous string representation of the vector."""
+        return repr((self.x, self.y))
+
+    def dot(self, other):
+        """The scalar (dot) product of self and other. Both must be vectors."""
+
+        if not isinstance(other, Vector2D):
+            raise TypeError('Can only take dot product of two Vector2D objects')
+        return self.x * other.x + self.y * other.y
+    # Alias the __matmul__ method to dot so we can use a @ b as well as a.dot(b).
+    __matmul__ = dot
+
+    def __sub__(self, other):
+        """Vector subtraction."""
+        return Vector2D(self.x - other.x, self.y - other.y)
+
+    sub = __sub__
+
+    def __add__(self, other):
+        """Vector addition."""
+        return Vector2D(self.x + other.x, self.y + other.y)
+
+    def __mul__(self, scalar):
+        """Multiplication of a vector by a scalar."""
+        if isinstance(scalar, int) or isinstance(scalar, float):
+            return Vector2D(self.x*scalar, self.y*scalar)
+        raise NotImplementedError('Can only multiply Vector2D by a scalar')
+
+    def __rmul__(self, scalar):
+        """Reflected multiplication so vector * scalar also works."""
+        return self.__mul__(scalar)
+
+    def __neg__(self):
+        """Negation of the vector (invert through origin.)"""
+        return Vector2D(-self.x, -self.y)
+
+    def __truediv__(self, scalar):
+        """True division of the vector by a scalar."""
+        return Vector2D(self.x / scalar, self.y / scalar)
+
+    def __mod__(self, scalar):
+        """One way to implement modulus operation: for each component."""
+        return Vector2D(self.x % scalar, self.y % scalar)
+
+    def __abs__(self):
+        """Absolute value (magnitude) of the vector."""
+        return math.sqrt(self.x**2 + self.y**2)
+
+    norm = __abs__
+
+    def distance_to(self, other):
+        """The distance between vectors self and other."""
+        return abs(self - other)
+
+    def to_polar(self):
+        """Return the vector's components in polar coordinates."""
+        return self.__abs__(), math.atan2(self.y, self.x)
+
+    """Volgende methods toegevoegd tbv tekenproject"""
+
+    def vecs2angle(self, other):
+        # berekent hoek tussen self en other
+        return math.acos(self.dot(other) / (self.__abs__() * other.__abs__()))
 
 
 """Hier worden de lengtes van de onder- en bovenarm gedefinieerd"""
@@ -143,19 +216,19 @@ Bnorm = 60  # lengte onderarm
 
 def C2AB(C_vector):
     # Construeert de A en B vectoren op basis van vector C
-    X = Vector2D.Vector2D_class(1, 0) # Hulpvector
+    X = Vector2D(1, 0) # Hulpvector
     Cnorm = C_vector.norm()  # lengte van vector C
     beta = math.acos((Bnorm ** 2 - Anorm ** 2 - Cnorm ** 2) / (-2 * Anorm * Cnorm))  # cosinus regel
     delta = C_vector.vecs2angle(X)
     phi = beta + delta
     # Construct A_vector in Cartesian coordinates from polar coordinates
-    A_vector = Vector2D.Vector2D_class(Anorm * math.cos(phi), Anorm * math.sin(phi))
+    A_vector = Vector2D(Anorm * math.cos(phi), Anorm * math.sin(phi))
     B_vector = C_vector.sub(A_vector)
     return A_vector, B_vector
 
 def AB2phigamma(A_vector, B_vector):
     # berekent de hoeken phi en gamma
-    X = Vector2D.Vector2D_class(1, 0)
+    X = Vector2D(1, 0)
     phi = A_vector.vecs2angle(X)
     gamma = A_vector.vecs2angle(B_vector)
     return phi, gamma
@@ -171,7 +244,7 @@ def set_servo_angle(servo, angle):
     servo.duty_u16(angle_to_duty(angle))
 
 def set_xy(x, y):
-    C_vector = Vector2D.Vector2D_class(x, y)
+    C_vector = Vector2D(x, y)
     A_vector, B_vector = C2AB(C_vector)
     phi, gamma = AB2phigamma(A_vector, B_vector)
     set_servo_angle(servo_schouder, math.degrees(phi))
@@ -231,6 +304,7 @@ while True:
 
         while button_schouder.value():
             time.sleep(0.01)
+
 
 
 
