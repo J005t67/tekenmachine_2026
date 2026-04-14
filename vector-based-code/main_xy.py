@@ -22,11 +22,7 @@ import time
 
 import framebuf
 
-import Vector2D
-from servo import Servo
-
-# framebuf → beeld in geheugen opbouwen voor OLED
-
+from servo_arm import ServoArm
 
 # =========================================================
 # KNOPPEN
@@ -35,9 +31,7 @@ button_schouder = Pin(13, Pin.IN, Pin.PULL_DOWN)
 button_elleboog = Pin(14, Pin.IN, Pin.PULL_DOWN)
 button_pen = Pin(15, Pin.IN, Pin.PULL_DOWN)
 
-shoulder_servo = Servo(18)
-elbow_servo = Servo(19)
-lift_servo = Servo(20)
+servo_arm = ServoArm(18, 19, 20)
 
 # =========================================================
 # OLED INSTELLING
@@ -168,7 +162,7 @@ def oled_message(l1="", l2="", l3=""):
     oled.show()
 
 oled_message("VPC-Tekenrobot", "Gereed", "Druk knop SW1")
-home()
+servo_arm.home()
 
 # =========================================================
 # HOOFDLUS
@@ -184,15 +178,15 @@ while True:
         while theta <= 2 * math.pi:
             x = r * math.cos(theta) + 20
             y = r * math.sin(theta) + 80
-            set_xy(x, y)
+            servo_arm.set_xy(x, y)
             if theta == 0:
                 time.sleep(1)
-                pen_down()
+                servo_arm.pen_down()
                 time.sleep(1)
             time.sleep(0.03)
             theta += theta_step
         time.sleep(1)
-        pen_up()
+        servo_arm.pen_up()
         time.sleep(1)
         home()
 
