@@ -14,7 +14,7 @@ import math
 # =========================================================
 # BIBLIOTHEKEN
 # =========================================================
-from machine import Pin, PWM, I2C
+from machine import Pin, I2C
 # Pin → knoppen en digitale signalen
 # PWM → servo aansturen
 # I2C → communicatie met OLED-scherm
@@ -23,8 +23,9 @@ import time
 # time → pauzes in het programma
 
 import framebuf
-
-import Vector2D
+from ulab import numpy as np
+# import Vector2D
+import brachi
 
 # framebuf → beeld in geheugen opbouwen voor OLED
 
@@ -35,26 +36,6 @@ import Vector2D
 button_schouder = Pin(13, Pin.IN, Pin.PULL_DOWN)
 button_elleboog = Pin(14, Pin.IN, Pin.PULL_DOWN)
 button_pen = Pin(15, Pin.IN, Pin.PULL_DOWN)
-
-# =========================================================
-# SERVO'S
-# =========================================================
-servo_schouder = PWM(Pin(18))
-servo_schouder.freq(50)
-
-servo_elleboog = PWM(Pin(19))
-servo_elleboog.freq(50)
-
-servo_pen = PWM(Pin(20))
-servo_pen.freq(50)
-
-# =========================================================
-# SERVO BEREIK
-# =========================================================
-# Deze waarden bepalen welk PWM-bereik hoort bij
-# ongeveer 0 graden en 180 graden.
-MIN_DUTY = 1670
-MAX_DUTY = 8024
 
 # =========================================================
 # OLED INSTELLING
@@ -134,59 +115,7 @@ class SSD1306_I2C:
             self.writeto_retry(b"\x40" + self.buffer[i:i + chunk])
             time.sleep_ms(1)
 
-
-
-"""Hier worden de lengtes van de onder- en bovenarm gedefinieerd"""
-Anorm = 80  # lengte bovenarm
-Bnorm = 60  # lengte onderarm
-
-
-def C2AB(C_vector):
-    # Construeert de A en B vectoren op basis van vector C
-    X = Vector2D.Vector2D_class(1, 0) # Hulpvector
-    Cnorm = C_vector.norm()  # lengte van vector C
-    beta = math.acos((Bnorm ** 2 - Anorm ** 2 - Cnorm ** 2) / (-2 * Anorm * Cnorm))  # cosinus regel
-    delta = C_vector.vecs2angle(X)
-    phi = beta + delta
-    # Construct A_vector in Cartesian coordinates from polar coordinates
-    A_vector = Vector2D.Vector2D_class(Anorm * math.cos(phi), Anorm * math.sin(phi))
-    B_vector = C_vector.sub(A_vector)
-    return A_vector, B_vector
-
-def AB2phigamma(A_vector, B_vector):
-    # berekent de hoeken phi en gamma
-    X = Vector2D.Vector2D_class(1, 0)
-    phi = A_vector.vecs2angle(X)
-    gamma = A_vector.vecs2angle(B_vector)
-    return phi, gamma
-
-def angle_to_duty(angle):
-    duty = int(MIN_DUTY + (angle / 180) * (MAX_DUTY - MIN_DUTY))
-    return duty
-
-def duty_to_angle(duty):
-    return (duty - MIN_DUTY) / (MAX_DUTY - MIN_DUTY) * 180
-
-def set_servo_angle(servo, angle):
-    servo.duty_u16(angle_to_duty(angle))
-
-def set_xy(x, y):
-    C_vector = Vector2D.Vector2D_class(x, y)
-    A_vector, B_vector = C2AB(C_vector)
-    phi, gamma = AB2phigamma(A_vector, B_vector)
-    set_servo_angle(servo_schouder, math.degrees(phi))
-    set_servo_angle(servo_elleboog, math.degrees(gamma))
-    time.sleep(0.1)
-
-def pen_up():
-    set_servo_angle(servo_pen, 90)
-
-def pen_down():
-    set_servo_angle(servo_pen, 90 + 60)
-
-def home():
-    pen_up()
-    set_xy(60, 80)
+brachiograph = brachi.brachi_class()
 
 oled = SSD1306_I2C(128, 64, i2c, addr=ADDR)
 
@@ -198,11 +127,50 @@ def oled_message(l1="", l2="", l3=""):
     oled.show()
 
 oled_message("VPC-Tekenrobot", "Gereed", "Druk knop SW1")
-home()
+brachiograph.home()
 
-
-
-
+# =========================================================
+# HOOFDLUS
+# =========================================================
+# set_xy(60, 80)
+# time.sleep(5)
+# while True:
+#     if button_schouder.value():
+#         x0 = -40
+#         dx = 20
+#         y0 = 50
+#         dy = 20
+#         x = x0
+#         pen_up()
+#         cnt = 0
+#         stop = False
+#         while x < 140:
+#             if stop:
+#                 print("Drawing stopped.")
+#                 break
+#             y = y0
+#             while y < 141:
+#                 if button_pen.value():  # break
+#                     stop = True
+#                     break
+#                 cnt += 1
+#                 set_xy(x, y)
+#                 print(f"cnt = {cnt}; x = {x}; y = {y}")
+#                 time.sleep(1)
+#                 pen_down()
+#                 time.sleep(3)
+#                 pen_up()
+#                 time.sleep(1)
+#                 y += dy
+#             x += dx
+#
+#         home()
+#
+#         while button_schouder.value():
+#             time.sleep(0.01)
+#
+#
+#
 # =========================================================
 # HOOFDLUS
 # =========================================================
@@ -217,20 +185,20 @@ while True:
         while theta <= 2 * math.pi:
             x = r * math.cos(theta) + 20
             y = r * math.sin(theta) + 80
-            set_xy(x, y)
+            brachiograph.set_xy(x, y)
             if theta == 0:
                 time.sleep(1)
-                pen_down()
+                brachiograph.pen_down()
                 time.sleep(1)
             time.sleep(0.03)
             theta += theta_step
         time.sleep(1)
-        pen_up()
+        brachiograph.pen_up()
         time.sleep(1)
-        home()
+        brachiograph.home()
 
         while button_schouder.value():
             time.sleep(0.01)
 
 
-
+#
