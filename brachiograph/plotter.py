@@ -214,11 +214,153 @@ class Plotter:
     #  ----------------- plotting methods -----------------
 
     def plot_file(self, filename="", bounds=None, angular_step=None, wait=None, resolution=None):
-        """Plots an image encoded as JSON lines in ``filename``."""
+        """Plots an image encoded as JSON lines in ``filename``.
+
+        Uses two-pass streaming so only one polyline is in memory at a time,
+        keeping RAM use low on memory-constrained hardware (e.g. Raspberry Pi Pico).
+        """
         bounds = bounds or self.bounds
-        with open(filename, "r") as line_file:
-            lines = json.load(line_file)
-        self.plot_lines(lines, bounds, angular_step, wait, resolution, flip=True)
+        
+        print("start first pass")
+        # First pass: read the file to determine rotation/scaling without storing all data.
+        rotate, x_mid, y_mid, box_x_mid, box_y_mid, divider, num_lines = self._compute_file_transform(
+            filename, bounds, flip=True
+        )
+        print("done first pass")
+        # Second pass: read and plot one polyline at a time.
+        line_no = 0
+        for line in self._iter_lines_from_file(filename):
+            line_no += 1
+            print("Line: {} / {}".format(line_no, num_lines))
+            first_point = True
+            for point in line:
+                px, py = point[0], point[1]
+                if rotate:
+                    px, py = py, px
+                px = (px - x_mid) / divider
+                if True ^ rotate:  # flip=True XOR rotate
+                    px = -px
+                px += box_x_mid
+                py = (py - y_mid) / divider + box_y_mid
+                if first_point:
+                    first_point = False
+                    if (round(self.x, 1), round(self.y, 1)) != (round(px, 1), round(py, 1)):
+                        self.xy(px, py, angular_step, wait, resolution)
+                else:
+                    self.xy(px, py, angular_step, wait, resolution, draw=True)
+
+        self.park()
+
+    def _iter_lines_from_file(self, filename):
+        """Stream one polyline at a time from a JSON file to avoid loading it all at once.
+
+        Expects a top-level JSON array of polylines:
+            [[[x, y], [x, y], ...], [[x, y], ...], ...]
+        Yields each polyline as a parsed list by tracking bracket depth and
+        passing each polyline's text to json.loads() individually.
+        """
+        depth = 0
+        buf = ""
+        in_string = False
+        escape = False
+        capturing = False
+
+        with open(filename, "r") as f:
+            while True:
+                chunk = f.read(256)
+                if not chunk:
+                    break
+                for ch in chunk:
+                    if escape:
+                        if capturing:
+                            buf += ch
+                        escape = False
+                        continue
+                    if in_string:
+                        if ch == "\\":
+                            escape = True
+                            if capturing:
+                                buf += ch
+                        elif ch == '"':
+                            in_string = False
+                            if capturing:
+                                buf += ch
+                        else:
+                            if capturing:
+                                buf += ch
+                        continue
+                    if ch == '"':
+                        in_string = True
+                        if capturing:
+                            buf += ch
+                        continue
+                    if ch == "[":
+                        depth += 1
+                        if depth == 2:
+                            capturing = True
+                            buf = ch
+                        elif capturing:
+                            buf += ch
+                    elif ch == "]":
+                        if capturing:
+                            buf += ch
+                        depth -= 1
+                        if depth == 1 and capturing:
+                            capturing = False
+                            yield json.loads(buf)
+                            buf = ""
+                    elif capturing:
+                        buf += ch
+
+    def _compute_file_transform(self, filename, bounds, flip=False):
+        """First pass: compute rotation/scaling parameters without storing all lines.
+
+        Returns (rotate, x_mid, y_mid, box_x_mid, box_y_mid, divider).
+        """
+        min_x = min_y = float("inf")
+        max_x = max_y = float("-inf")
+
+        line_no = 0
+        for line in self._iter_lines_from_file(filename):
+            line_no += 1
+            print("Line: {}".format(line_no))
+        
+            for point in line:
+                px, py = point[0], point[1]
+                if px < min_x:
+                    min_x = px
+                if px > max_x:
+                    max_x = px
+                if py < min_y:
+                    min_y = py
+                if py > max_y:
+                    max_y = py
+
+        x_range = max_x - min_x
+        y_range = max_y - min_y
+        box_x_range = bounds[2] - bounds[0]
+        box_y_range = bounds[3] - bounds[1]
+
+        x_mid = (max_x + min_x) / 2
+        y_mid = (max_y + min_y) / 2
+        box_x_mid = (bounds[0] + bounds[2]) / 2
+        box_y_mid = (bounds[1] + bounds[3]) / 2
+
+        if (x_range >= y_range and box_x_range >= box_y_range) or (
+            x_range <= y_range and box_x_range <= box_y_range
+        ):
+            divider = max(x_range / box_x_range, y_range / box_y_range)
+            rotate = False
+        else:
+            divider = max(x_range / box_y_range, y_range / box_x_range)
+            rotate = True
+            x_mid, y_mid = y_mid, x_mid
+
+        # Guard against a degenerate file where all points are identical.
+        if divider == 0:
+            divider = 1
+
+        return (rotate, x_mid, y_mid, box_x_mid, box_y_mid, divider, line_no)
 
     def plot_lines(
         self,

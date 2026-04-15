@@ -42,13 +42,31 @@ Ik heb Claude Sonnet 4.6 via GitHub CoPilot gevraagd de code om te schrijven naa
 
 Hierna heb ik nog de juiste pinnen van de servo's ingesteld en branchiograph.py aangepast, omdat die nog referenties naar het verwijderde turtle support had.
 
-Upload de `branchiograph.py`, `plotter.py` en `demo.json` naar de Raspberry Pi Pico. Open het bestand bg.py en voer het uit (F5). Nu kun je onder in de Shell commando's uitvoeren, zoals beschreven in bijvoorbeeld [Start up the brachiograph](https://www.brachiograph.art/tutorial/power/):
+Upload de `branchiograph.py`, `plotter.py`, `demo-small.json` en `demo.json` naar de Raspberry Pi Pico. Open het bestand bg.py en voer het uit (F5). Nu kun je onder in de Shell commando's uitvoeren, zoals beschreven in [Start up the brachiograph](https://www.brachiograph.art/tutorial/power/). Let op dat deze brachiograph ervan uit gaat dat de bovenarm 90 graden naar links gedraait begint en de onderarm daar haaks op staat.
 ```
 bg.set_angles(0, 90)
 bg.park()
-bg.plot_file("demo.json")
+bg.plot_file("demo-small.json")
 ```
 
 Let op dat `bg.test_pattern()` niet werkt, omdat dat patroon uit gaat van een onderarm van 8 cm, en die van ons is maar 6 cm.
 
-Ook de demo.json heb ik moeten verkleinen (het is maar een kwart van het originele plaatje), omdat de brachiograph alles in een keer in het geheugen probeert te laden, maar daar niet genoeg geheugen voor heeft. Nog een toekomstig verbeterpunt.
+Ook de `demo.json` heb ik moeten verkleinen naar `demo-small.json` (het is maar een kwart van het originele plaatje), omdat de brachiograph alles in een keer in het geheugen probeert te laden, maar daar niet genoeg geheugen voor heeft. Ook daar kan Claude mee helpen:
+
+> User: Due to memory restrictions on the Raspberry Pi Pico, plotting big files using the `plot_file` method runs out of memory. Can you improve the code to implement either streaming or chunking in the plot_files method?
+> 
+> GitHub Copilot: Looking at `plot_file`, the issue is twofold: `json.load()` loads the entire file at once, and `rotate_and_scale_lines` also keeps all data in memory. I'll replace it with a two-pass streaming approach: first pass computes the transform parameters (min/max bounds), second pass reads and plots one polyline at a time. 
+> 
+> Replacing 8 lines with 145 lines in plotter.py.
+> 
+> Looks good. Here's what the implementation does:
+> 
+> **`_iter_lines_from_file`** — a generator that reads the file in 256-byte chunks and tracks bracket depth. When depth goes from 1→2, it starts accumulating characters into a buffer; when depth drops back to 1, it calls `json.loads()` on that buffer (one polyline) and yields it. Only one polyline's text is ever in `buf` at a time.
+> 
+> **`_compute_file_transform`** — the first pass. Iterates using the generator, tracking only `min_x/max_x/min_y/max_y` (four floats). Replicates the logic from `analyse_lines` to determine rotation, scaling, and midpoints.
+> 
+> **`plot_file`** — now does two passes over the file. The first computes the transform; the second streams polylines one at a time, applies the transform point-by-point, and plots them directly — no list of all lines, no `rotate_and_scale_lines` call on the full dataset.
+> 
+> Peak memory use is now proportional to one polyline rather than the entire file.
+
+Ik heb zelf nog een paar kleine verbeteringen uitgevoerd, maar nu kan die inderdaad in een keer de hele demo.json tekenen met `bg.plot_file("demo.json")`
